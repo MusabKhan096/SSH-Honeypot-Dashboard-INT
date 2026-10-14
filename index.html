@@ -1,0 +1,1703 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>HoneyTrap — Live Lab Honeypot Dashboard</title>
+    <meta name="description" content="Real-time SSH Honeypot Security Operations Center Dashboard — Monitor, analyze, and respond to live attack data." />
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        /* ═══════════════════════════════════════════════════
+           DESIGN SYSTEM — CSS Custom Properties
+           ═══════════════════════════════════════════════════ */
+        :root {
+            /* Background layers */
+            --bg-base: #0a0e17;
+            --bg-surface: #111827;
+            --bg-elevated: #1a2332;
+            --bg-card: rgba(17, 24, 39, 0.7);
+            --bg-card-hover: rgba(26, 35, 50, 0.9);
+            --bg-glass: rgba(17, 24, 39, 0.5);
+
+            /* Borders */
+            --border-subtle: rgba(55, 65, 81, 0.5);
+            --border-default: rgba(75, 85, 99, 0.4);
+            --border-accent: rgba(99, 102, 241, 0.3);
+
+            /* Text */
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --text-inverse: #0a0e17;
+
+            /* Accent palette */
+            --accent-red: #ef4444;
+            --accent-red-glow: rgba(239, 68, 68, 0.15);
+            --accent-red-bright: #f87171;
+            --accent-orange: #f59e0b;
+            --accent-orange-glow: rgba(245, 158, 11, 0.15);
+            --accent-green: #10b981;
+            --accent-green-glow: rgba(16, 185, 129, 0.15);
+            --accent-blue: #3b82f6;
+            --accent-blue-glow: rgba(59, 130, 246, 0.15);
+            --accent-indigo: #6366f1;
+            --accent-indigo-glow: rgba(99, 102, 241, 0.15);
+            --accent-cyan: #06b6d4;
+            --accent-cyan-glow: rgba(6, 182, 212, 0.15);
+            --accent-purple: #a855f7;
+            --accent-purple-glow: rgba(168, 85, 247, 0.15);
+
+            /* Typography */
+            --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+            --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+
+            /* Spacing */
+            --radius-sm: 8px;
+            --radius-md: 12px;
+            --radius-lg: 16px;
+            --radius-xl: 20px;
+
+            /* Shadows */
+            --shadow-card: 0 4px 24px rgba(0, 0, 0, 0.3), 0 1px 4px rgba(0, 0, 0, 0.2);
+            --shadow-glow-red: 0 0 30px rgba(239, 68, 68, 0.15);
+            --shadow-glow-blue: 0 0 30px rgba(59, 130, 246, 0.15);
+            --shadow-glow-green: 0 0 30px rgba(16, 185, 129, 0.15);
+
+            /* Transitions */
+            --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+            --transition-default: 250ms cubic-bezier(0.4, 0, 0.2, 1);
+            --transition-slow: 400ms cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* ═══════════════════════════════════════════════════
+           RESET & BASE
+           ═══════════════════════════════════════════════════ */
+        *, *::before, *::after {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html {
+            font-size: 14px;
+            scroll-behavior: smooth;
+        }
+
+        body {
+            font-family: var(--font-sans);
+            background: var(--bg-base);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+            line-height: 1.5;
+        }
+
+        /* Ambient animated background */
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background:
+                radial-gradient(ellipse 80% 50% at 20% 20%, rgba(99, 102, 241, 0.06), transparent),
+                radial-gradient(ellipse 60% 40% at 80% 80%, rgba(239, 68, 68, 0.04), transparent),
+                radial-gradient(ellipse 50% 30% at 50% 50%, rgba(6, 182, 212, 0.03), transparent);
+            pointer-events: none;
+            z-index: 0;
+            animation: ambientShift 20s ease-in-out infinite alternate;
+        }
+
+        @keyframes ambientShift {
+            0% { opacity: 0.7; }
+            50% { opacity: 1; }
+            100% { opacity: 0.7; }
+        }
+
+        /* ═══════════════════════════════════════════════════
+           SCROLLBAR
+           ═══════════════════════════════════════════════════ */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(100, 116, 139, 0.3);
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(100, 116, 139, 0.5);
+        }
+
+        /* ═══════════════════════════════════════════════════
+           HEADER
+           ═══════════════════════════════════════════════════ */
+        .header {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            backdrop-filter: blur(20px) saturate(180%);
+            -webkit-backdrop-filter: blur(20px) saturate(180%);
+            background: rgba(10, 14, 23, 0.8);
+            border-bottom: 1px solid var(--border-subtle);
+            padding: 0 24px;
+        }
+
+        .header-inner {
+            max-width: 1600px;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            height: 64px;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .logo-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: var(--radius-md);
+            background: linear-gradient(135deg, var(--accent-red), var(--accent-orange));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 0 20px rgba(239, 68, 68, 0.25);
+            animation: logoPulse 3s ease-in-out infinite;
+        }
+
+        @keyframes logoPulse {
+            0%, 100% { box-shadow: 0 0 20px rgba(239, 68, 68, 0.25); }
+            50% { box-shadow: 0 0 35px rgba(239, 68, 68, 0.4); }
+        }
+
+        .logo-icon svg {
+            color: white;
+        }
+
+        .logo-text {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .logo-title {
+            font-size: 1.25rem;
+            font-weight: 800;
+            letter-spacing: -0.02em;
+            background: linear-gradient(135deg, #f1f5f9, #94a3b8);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .logo-subtitle {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            font-weight: 500;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+        }
+
+        .header-status {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .status-badge {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 14px;
+            border-radius: 999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+        }
+
+        .status-badge.live {
+            background: var(--accent-green-glow);
+            color: var(--accent-green);
+            border: 1px solid rgba(16, 185, 129, 0.2);
+        }
+
+        .status-badge.live .pulse-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--accent-green);
+            animation: pulseDot 2s ease-in-out infinite;
+        }
+
+        .status-badge.disconnected {
+            background: var(--accent-red-glow);
+            color: var(--accent-red);
+            border: 1px solid rgba(239, 68, 68, 0.2);
+        }
+
+        @keyframes pulseDot {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(0.7); }
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        /* ═══════════════════════════════════════════════════
+           BUTTONS
+           ═══════════════════════════════════════════════════ */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 16px;
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius-sm);
+            background: var(--bg-elevated);
+            color: var(--text-secondary);
+            font-family: var(--font-sans);
+            font-size: 0.8rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all var(--transition-fast);
+            white-space: nowrap;
+        }
+
+        .btn:hover {
+            background: var(--bg-card-hover);
+            color: var(--text-primary);
+            border-color: var(--border-accent);
+            transform: translateY(-1px);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn-danger {
+            border-color: rgba(239, 68, 68, 0.3);
+            color: var(--accent-red-bright);
+            background: var(--accent-red-glow);
+        }
+
+        .btn-danger:hover {
+            background: rgba(239, 68, 68, 0.25);
+            border-color: var(--accent-red);
+            box-shadow: var(--shadow-glow-red);
+        }
+
+        .btn-primary {
+            border-color: rgba(99, 102, 241, 0.3);
+            color: var(--accent-indigo);
+            background: var(--accent-indigo-glow);
+        }
+
+        .btn-primary:hover {
+            background: rgba(99, 102, 241, 0.25);
+            border-color: var(--accent-indigo);
+            box-shadow: var(--shadow-glow-blue);
+        }
+
+        .btn-sm {
+            padding: 4px 10px;
+            font-size: 0.7rem;
+        }
+
+        /* ═══════════════════════════════════════════════════
+           MAIN LAYOUT
+           ═══════════════════════════════════════════════════ */
+        .main {
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 20px 24px 40px;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* ═══════════════════════════════════════════════════
+           METRICS ROW
+           ═══════════════════════════════════════════════════ */
+        .metrics-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+
+        .metric-card {
+            background: var(--bg-card);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-lg);
+            padding: 20px 22px;
+            position: relative;
+            overflow: hidden;
+            transition: all var(--transition-default);
+        }
+
+        .metric-card:hover {
+            border-color: var(--border-accent);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-card);
+        }
+
+        .metric-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+        }
+
+        .metric-card.red::before { background: linear-gradient(90deg, var(--accent-red), var(--accent-orange)); }
+        .metric-card.blue::before { background: linear-gradient(90deg, var(--accent-blue), var(--accent-cyan)); }
+        .metric-card.green::before { background: linear-gradient(90deg, var(--accent-green), var(--accent-cyan)); }
+        .metric-card.purple::before { background: linear-gradient(90deg, var(--accent-purple), var(--accent-indigo)); }
+
+        .metric-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 12px;
+        }
+
+        .metric-label {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+
+        .metric-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: var(--radius-sm);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .metric-card.red .metric-icon { background: var(--accent-red-glow); color: var(--accent-red); }
+        .metric-card.blue .metric-icon { background: var(--accent-blue-glow); color: var(--accent-blue); }
+        .metric-card.green .metric-icon { background: var(--accent-green-glow); color: var(--accent-green); }
+        .metric-card.purple .metric-icon { background: var(--accent-purple-glow); color: var(--accent-purple); }
+
+        .metric-value {
+            font-size: 2.2rem;
+            font-weight: 800;
+            letter-spacing: -0.03em;
+            line-height: 1;
+        }
+
+        .metric-card.red .metric-value { color: var(--accent-red-bright); }
+        .metric-card.blue .metric-value { color: var(--accent-blue); }
+        .metric-card.green .metric-value { color: var(--accent-green); }
+        .metric-card.purple .metric-value { color: var(--accent-purple); }
+
+        .metric-sub {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+
+        /* flash animation for metric updates */
+        @keyframes metricFlash {
+            0% { background: rgba(99, 102, 241, 0.1); }
+            100% { background: var(--bg-card); }
+        }
+
+        .metric-card.flash {
+            animation: metricFlash 0.6s ease-out;
+        }
+
+        /* ═══════════════════════════════════════════════════
+           DASHBOARD GRID
+           ═══════════════════════════════════════════════════ */
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: auto auto auto;
+            gap: 16px;
+        }
+
+        /* ═══════════════════════════════════════════════════
+           CARD
+           ═══════════════════════════════════════════════════ */
+        .card {
+            background: var(--bg-card);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+            transition: border-color var(--transition-default);
+        }
+
+        .card:hover {
+            border-color: var(--border-accent);
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 20px 12px;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+
+        .card-title {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.85rem;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .card-title-icon {
+            width: 28px;
+            height: 28px;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .card-body {
+            padding: 16px 20px;
+        }
+
+        /* ═══════════════════════════════════════════════════
+           LIVE ATTACK FEED (Terminal Style)
+           ═══════════════════════════════════════════════════ */
+        .feed-card {
+            grid-column: 1 / -1;
+        }
+
+        .feed-card .card-title-icon {
+            background: var(--accent-red-glow);
+            color: var(--accent-red);
+        }
+
+        .terminal {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: var(--radius-sm);
+            padding: 4px;
+            height: 260px;
+            overflow-y: auto;
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            line-height: 1.7;
+        }
+
+        .terminal-line {
+            padding: 2px 10px;
+            border-radius: 4px;
+            display: flex;
+            gap: 10px;
+            animation: lineSlideIn 0.3s ease-out;
+            transition: background var(--transition-fast);
+        }
+
+        .terminal-line:hover {
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        @keyframes lineSlideIn {
+            from { opacity: 0; transform: translateX(-10px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        .terminal-line .ts {
+            color: var(--text-muted);
+            flex-shrink: 0;
+            min-width: 80px;
+        }
+
+        .terminal-line .ip {
+            color: var(--accent-cyan);
+            flex-shrink: 0;
+            min-width: 120px;
+        }
+
+        .terminal-line .event {
+            flex: 1;
+        }
+
+        .terminal-line .event.fail {
+            color: var(--accent-red-bright);
+        }
+
+        .terminal-line .event.success {
+            color: var(--accent-green);
+        }
+
+        .terminal-line .event.command {
+            color: var(--accent-orange);
+        }
+
+        .terminal-line .event.connection {
+            color: var(--accent-indigo);
+        }
+
+        .terminal-line .event.blocked {
+            color: var(--accent-purple);
+        }
+
+        .terminal-empty {
+            color: var(--text-muted);
+            text-align: center;
+            padding: 60px 20px;
+            font-style: italic;
+        }
+
+        /* ═══════════════════════════════════════════════════
+           COMMAND LOGGER
+           ═══════════════════════════════════════════════════ */
+        .cmd-card .card-title-icon {
+            background: var(--accent-orange-glow);
+            color: var(--accent-orange);
+        }
+
+        .command-log {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: var(--radius-sm);
+            padding: 8px;
+            height: 240px;
+            overflow-y: auto;
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+        }
+
+        .cmd-entry {
+            padding: 6px 10px;
+            border-radius: 4px;
+            margin-bottom: 4px;
+            animation: lineSlideIn 0.3s ease-out;
+            border-left: 2px solid var(--accent-orange);
+            background: rgba(245, 158, 11, 0.03);
+        }
+
+        .cmd-entry:hover {
+            background: rgba(245, 158, 11, 0.06);
+        }
+
+        .cmd-meta {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 2px;
+            font-size: 0.65rem;
+        }
+
+        .cmd-meta .cmd-ts { color: var(--text-muted); }
+        .cmd-meta .cmd-user { color: var(--accent-green); }
+        .cmd-meta .cmd-ip { color: var(--accent-cyan); }
+
+        .cmd-text {
+            color: var(--accent-orange);
+        }
+
+        .cmd-text::before {
+            content: '$ ';
+            color: var(--text-muted);
+        }
+
+        .cmd-empty {
+            color: var(--text-muted);
+            text-align: center;
+            padding: 60px 20px;
+            font-style: italic;
+        }
+
+        /* ═══════════════════════════════════════════════════
+           TOP LISTS (Usernames / Passwords)
+           ═══════════════════════════════════════════════════ */
+        .lists-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 16px;
+        }
+
+        .list-card .card-title-icon.users { background: var(--accent-blue-glow); color: var(--accent-blue); }
+        .list-card .card-title-icon.passwords { background: var(--accent-purple-glow); color: var(--accent-purple); }
+        .list-card .card-title-icon.ips { background: var(--accent-cyan-glow); color: var(--accent-cyan); }
+
+        .rank-list {
+            list-style: none;
+        }
+
+        .rank-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(55, 65, 81, 0.2);
+            animation: lineSlideIn 0.3s ease-out;
+        }
+
+        .rank-item:last-child {
+            border-bottom: none;
+        }
+
+        .rank-num {
+            width: 22px;
+            height: 22px;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.65rem;
+            font-weight: 700;
+            flex-shrink: 0;
+        }
+
+        .rank-item:nth-child(1) .rank-num { background: var(--accent-red-glow); color: var(--accent-red); }
+        .rank-item:nth-child(2) .rank-num { background: var(--accent-orange-glow); color: var(--accent-orange); }
+        .rank-item:nth-child(3) .rank-num { background: var(--accent-blue-glow); color: var(--accent-blue); }
+        .rank-item:nth-child(n+4) .rank-num { background: rgba(55,65,81,0.3); color: var(--text-muted); }
+
+        .rank-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .rank-value {
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .rank-bar-bg {
+            height: 4px;
+            border-radius: 2px;
+            background: rgba(55, 65, 81, 0.3);
+            margin-top: 4px;
+            overflow: hidden;
+        }
+
+        .rank-bar {
+            height: 100%;
+            border-radius: 2px;
+            transition: width var(--transition-slow);
+        }
+
+        .list-card.users-card .rank-bar { background: linear-gradient(90deg, var(--accent-blue), var(--accent-cyan)); }
+        .list-card.passwords-card .rank-bar { background: linear-gradient(90deg, var(--accent-purple), var(--accent-indigo)); }
+        .list-card.ips-card .rank-bar { background: linear-gradient(90deg, var(--accent-cyan), var(--accent-green)); }
+
+        .rank-count {
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: var(--text-secondary);
+            flex-shrink: 0;
+            font-family: var(--font-mono);
+        }
+
+        .list-empty {
+            color: var(--text-muted);
+            text-align: center;
+            padding: 40px 20px;
+            font-style: italic;
+            font-size: 0.8rem;
+        }
+
+        /* ═══════════════════════════════════════════════════
+           CHART
+           ═══════════════════════════════════════════════════ */
+        .chart-card {
+            grid-column: 1 / -1;
+        }
+
+        .chart-card .card-title-icon {
+            background: var(--accent-green-glow);
+            color: var(--accent-green);
+        }
+
+        .chart-container {
+            height: 240px;
+            position: relative;
+        }
+
+        /* ═══════════════════════════════════════════════════
+           BLOCKED IPS
+           ═══════════════════════════════════════════════════ */
+        .blocked-card .card-title-icon {
+            background: var(--accent-red-glow);
+            color: var(--accent-red);
+        }
+
+        .blocked-list {
+            list-style: none;
+            max-height: 180px;
+            overflow-y: auto;
+        }
+
+        .blocked-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 10px;
+            border-radius: 6px;
+            margin-bottom: 4px;
+            background: rgba(239, 68, 68, 0.05);
+            border: 1px solid rgba(239, 68, 68, 0.1);
+            animation: lineSlideIn 0.3s ease-out;
+        }
+
+        .blocked-ip-text {
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+            color: var(--accent-red-bright);
+        }
+
+        .blocked-empty {
+            color: var(--text-muted);
+            text-align: center;
+            padding: 30px 20px;
+            font-style: italic;
+            font-size: 0.8rem;
+        }
+
+        /* ═══════════════════════════════════════════════════
+           BLOCK IP MODAL
+           ═══════════════════════════════════════════════════ */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(4px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .modal-overlay.open {
+            display: flex;
+        }
+
+        .modal {
+            background: var(--bg-elevated);
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius-xl);
+            padding: 28px;
+            width: 400px;
+            max-width: 90vw;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+            animation: modalIn 0.25s ease-out;
+        }
+
+        @keyframes modalIn {
+            from { opacity: 0; transform: scale(0.95) translateY(10px); }
+            to { opacity: 1; transform: scale(1) translateY(0); }
+        }
+
+        .modal h3 {
+            font-size: 1.1rem;
+            font-weight: 700;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .modal input {
+            width: 100%;
+            padding: 10px 14px;
+            background: var(--bg-base);
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius-sm);
+            color: var(--text-primary);
+            font-family: var(--font-mono);
+            font-size: 0.9rem;
+            margin-bottom: 16px;
+            outline: none;
+            transition: border-color var(--transition-fast);
+        }
+
+        .modal input:focus {
+            border-color: var(--accent-indigo);
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 8px;
+            justify-content: flex-end;
+        }
+
+        /* ═══════════════════════════════════════════════════
+           TOAST NOTIFICATIONS
+           ═══════════════════════════════════════════════════ */
+        .toast-container {
+            position: fixed;
+            top: 80px;
+            right: 24px;
+            z-index: 2000;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .toast {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px 18px;
+            border-radius: var(--radius-md);
+            background: var(--bg-elevated);
+            border: 1px solid var(--border-default);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+            font-size: 0.8rem;
+            font-weight: 500;
+            animation: toastIn 0.35s ease-out;
+            min-width: 280px;
+        }
+
+        .toast.success { border-color: rgba(16, 185, 129, 0.3); }
+        .toast.success .toast-icon { color: var(--accent-green); }
+        .toast.error { border-color: rgba(239, 68, 68, 0.3); }
+        .toast.error .toast-icon { color: var(--accent-red); }
+        .toast.info { border-color: rgba(59, 130, 246, 0.3); }
+        .toast.info .toast-icon { color: var(--accent-blue); }
+
+        @keyframes toastIn {
+            from { opacity: 0; transform: translateX(40px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        @keyframes toastOut {
+            from { opacity: 1; transform: translateX(0); }
+            to { opacity: 0; transform: translateX(40px); }
+        }
+
+        /* ═══════════════════════════════════════════════════
+           RESPONSIVE
+           ═══════════════════════════════════════════════════ */
+        @media (max-width: 1024px) {
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+            }
+            .lists-row {
+                grid-template-columns: 1fr;
+            }
+            .feed-card, .chart-card {
+                grid-column: 1;
+            }
+        }
+
+        @media (max-width: 640px) {
+            .metrics-row {
+                grid-template-columns: 1fr 1fr;
+            }
+            .header-inner {
+                flex-wrap: wrap;
+                height: auto;
+                padding: 12px 0;
+                gap: 12px;
+            }
+        }
+
+        /* ═══════════════════════════════════════════════════
+           ATTACK FLASH OVERLAY
+           ═══════════════════════════════════════════════════ */
+        .attack-flash {
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: 50;
+            opacity: 0;
+        }
+
+        .attack-flash.active {
+            animation: attackFlash 0.4s ease-out;
+        }
+
+        @keyframes attackFlash {
+            0% { opacity: 0; box-shadow: inset 0 0 100px rgba(239, 68, 68, 0.15); }
+            30% { opacity: 1; box-shadow: inset 0 0 100px rgba(239, 68, 68, 0.15); }
+            100% { opacity: 0; box-shadow: inset 0 0 100px rgba(239, 68, 68, 0); }
+        }
+
+        /* Utility: count badge in card header */
+        .count-badge {
+            padding: 2px 8px;
+            border-radius: 999px;
+            font-size: 0.65rem;
+            font-weight: 700;
+            font-family: var(--font-mono);
+            background: rgba(99, 102, 241, 0.1);
+            color: var(--accent-indigo);
+            border: 1px solid rgba(99, 102, 241, 0.15);
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Attack flash overlay -->
+    <div class="attack-flash" id="attackFlash"></div>
+
+    <!-- Toast container -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <!-- Block IP Modal -->
+    <div class="modal-overlay" id="blockModal">
+        <div class="modal">
+            <h3>
+                <i data-lucide="shield-ban" style="width:20px;height:20px;color:var(--accent-red)"></i>
+                Block IP Address
+            </h3>
+            <input type="text" id="blockIpInput" placeholder="e.g. 192.168.1.100" autocomplete="off" />
+            <div class="modal-actions">
+                <button class="btn" onclick="closeBlockModal()">Cancel</button>
+                <button class="btn btn-danger" onclick="submitBlockIP()">
+                    <i data-lucide="ban" style="width:14px;height:14px"></i> Block
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════ HEADER ═══════════ -->
+    <header class="header">
+        <div class="header-inner">
+            <div class="logo">
+                <div class="logo-icon">
+                    <i data-lucide="shield-alert" style="width:22px;height:22px"></i>
+                </div>
+                <div class="logo-text">
+                    <span class="logo-title">HoneyTrap</span>
+                    <span class="logo-subtitle">Live Honeypot Dashboard</span>
+                </div>
+            </div>
+
+            <div class="header-status">
+                <div class="status-badge live" id="statusBadge">
+                    <div class="pulse-dot"></div>
+                    <span id="statusText">CONNECTED</span>
+                </div>
+            </div>
+
+            <div class="header-actions">
+                <button class="btn btn-danger" onclick="openBlockModal()">
+                    <i data-lucide="shield-ban" style="width:14px;height:14px"></i> Block IP
+                </button>
+                <button class="btn btn-primary" onclick="exportCSV()">
+                    <i data-lucide="download" style="width:14px;height:14px"></i> Export CSV
+                </button>
+                <button class="btn" onclick="exportJSON()">
+                    <i data-lucide="file-json" style="width:14px;height:14px"></i> JSON
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- ═══════════ MAIN DASHBOARD ═══════════ -->
+    <main class="main">
+        <!-- METRICS ROW -->
+        <section class="metrics-row" id="metricsRow">
+            <div class="metric-card red" id="metricAttempts">
+                <div class="metric-header">
+                    <span class="metric-label">Total Attempts</span>
+                    <div class="metric-icon"><i data-lucide="crosshair" style="width:18px;height:18px"></i></div>
+                </div>
+                <div class="metric-value" id="totalAttempts">0</div>
+                <div class="metric-sub">Login attempts captured</div>
+            </div>
+
+            <div class="metric-card blue" id="metricIPs">
+                <div class="metric-header">
+                    <span class="metric-label">Unique IPs</span>
+                    <div class="metric-icon"><i data-lucide="globe" style="width:18px;height:18px"></i></div>
+                </div>
+                <div class="metric-value" id="uniqueIPs">0</div>
+                <div class="metric-sub">Distinct source addresses</div>
+            </div>
+
+            <div class="metric-card green" id="metricActive">
+                <div class="metric-header">
+                    <span class="metric-label">Active Sessions</span>
+                    <div class="metric-icon"><i data-lucide="radio" style="width:18px;height:18px"></i></div>
+                </div>
+                <div class="metric-value" id="activeSessions">0</div>
+                <div class="metric-sub">Currently connected</div>
+            </div>
+
+            <div class="metric-card purple" id="metricCommands">
+                <div class="metric-header">
+                    <span class="metric-label">Commands Logged</span>
+                    <div class="metric-icon"><i data-lucide="terminal" style="width:18px;height:18px"></i></div>
+                </div>
+                <div class="metric-value" id="totalCommands">0</div>
+                <div class="metric-sub">Shell commands captured</div>
+            </div>
+        </section>
+
+        <!-- LIVE FEED -->
+        <section class="card feed-card" style="margin-bottom: 16px;">
+            <div class="card-header">
+                <div class="card-title">
+                    <div class="card-title-icon"><i data-lucide="activity" style="width:16px;height:16px"></i></div>
+                    Live Attack Feed
+                </div>
+                <span class="count-badge" id="feedCount">0 events</span>
+            </div>
+            <div class="card-body">
+                <div class="terminal" id="attackFeed">
+                    <div class="terminal-empty">Waiting for incoming connections on port 2222…</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- TWO-COLUMN: Command Logger + Blocked IPs -->
+        <div class="dashboard-grid" style="margin-bottom: 16px;">
+            <section class="card cmd-card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <div class="card-title-icon"><i data-lucide="terminal-square" style="width:16px;height:16px"></i></div>
+                        Command Logger
+                    </div>
+                    <span class="count-badge" id="cmdCount">0 commands</span>
+                </div>
+                <div class="card-body">
+                    <div class="command-log" id="commandLog">
+                        <div class="cmd-empty">No shell commands captured yet…</div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="card blocked-card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <div class="card-title-icon"><i data-lucide="shield-off" style="width:16px;height:16px"></i></div>
+                        Blocked IPs
+                    </div>
+                    <span class="count-badge" id="blockedCount">0 blocked</span>
+                </div>
+                <div class="card-body">
+                    <ul class="blocked-list" id="blockedList">
+                        <li class="blocked-empty">No IPs blocked</li>
+                    </ul>
+                </div>
+            </section>
+        </div>
+
+        <!-- THREE-COLUMN: Top Usernames + Passwords + IPs -->
+        <section class="lists-row" style="margin-bottom: 16px;">
+            <div class="card list-card users-card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <div class="card-title-icon users"><i data-lucide="user" style="width:16px;height:16px"></i></div>
+                        Top Usernames
+                    </div>
+                </div>
+                <div class="card-body">
+                    <ul class="rank-list" id="topUsernames">
+                        <li class="list-empty">No data yet</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="card list-card passwords-card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <div class="card-title-icon passwords"><i data-lucide="key-round" style="width:16px;height:16px"></i></div>
+                        Top Passwords
+                    </div>
+                </div>
+                <div class="card-body">
+                    <ul class="rank-list" id="topPasswords">
+                        <li class="list-empty">No data yet</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="card list-card ips-card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <div class="card-title-icon ips"><i data-lucide="radar" style="width:16px;height:16px"></i></div>
+                        Top Attacker IPs
+                    </div>
+                </div>
+                <div class="card-body">
+                    <ul class="rank-list" id="topIPs">
+                        <li class="list-empty">No data yet</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+        <!-- CHART -->
+        <section class="card chart-card">
+            <div class="card-header">
+                <div class="card-title">
+                    <div class="card-title-icon"><i data-lucide="trending-up" style="width:16px;height:16px"></i></div>
+                    Attempts Over Time
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="chart-container">
+                    <canvas id="timeChart"></canvas>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- ═══════════════════════════════════════════════════
+         JAVASCRIPT — WebSocket + UI Logic
+         ═══════════════════════════════════════════════════ -->
+    <script>
+    (function () {
+        'use strict';
+
+        // ── State ──────────────────────────────────────
+        const state = {
+            attempts: [],
+            commands: [],
+            stats: { totalAttempts: 0, uniqueIPs: 0, activeConnections: 0 },
+            topUsernames: [],
+            topPasswords: [],
+            topIPs: [],
+            attemptsOverTime: [],
+            blockedIPs: [],
+            feedEvents: [],
+        };
+
+        const API_BASE = `${window.location.protocol}//${window.location.hostname}:3000`;
+        const WS_URL = `ws://${window.location.hostname}:3000/ws`;
+        let ws = null;
+        let reconnectTimer = null;
+        let chart = null;
+
+        // ── Initialize Lucide icons ────────────────────
+        document.addEventListener('DOMContentLoaded', () => {
+            lucide.createIcons();
+            initChart();
+            connectWebSocket();
+        });
+
+        // ── WebSocket ──────────────────────────────────
+        function connectWebSocket() {
+            if (ws && ws.readyState === WebSocket.OPEN) return;
+
+            ws = new WebSocket(WS_URL);
+
+            ws.onopen = () => {
+                console.log('[WS] Connected');
+                setStatus(true);
+                showToast('Connected to honeypot server', 'success');
+                if (reconnectTimer) {
+                    clearInterval(reconnectTimer);
+                    reconnectTimer = null;
+                }
+            };
+
+            ws.onmessage = (evt) => {
+                try {
+                    const msg = JSON.parse(evt.data);
+                    handleEvent(msg.event, msg.data);
+                } catch (e) {
+                    console.error('[WS] Parse error:', e);
+                }
+            };
+
+            ws.onclose = () => {
+                console.log('[WS] Disconnected');
+                setStatus(false);
+                if (!reconnectTimer) {
+                    reconnectTimer = setInterval(() => {
+                        console.log('[WS] Reconnecting…');
+                        connectWebSocket();
+                    }, 3000);
+                }
+            };
+
+            ws.onerror = () => {
+                ws.close();
+            };
+
+            // Keepalive ping every 25s
+            setInterval(() => {
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    ws.send('ping');
+                }
+            }, 25000);
+        }
+
+        function setStatus(connected) {
+            const badge = document.getElementById('statusBadge');
+            const text = document.getElementById('statusText');
+            if (connected) {
+                badge.className = 'status-badge live';
+                badge.innerHTML = '<div class="pulse-dot"></div><span>CONNECTED</span>';
+            } else {
+                badge.className = 'status-badge disconnected';
+                badge.innerHTML = '<span>DISCONNECTED</span>';
+            }
+        }
+
+        // ── Event Handlers ─────────────────────────────
+        function handleEvent(event, data) {
+            switch (event) {
+                case 'initial_state':
+                    loadInitialState(data);
+                    break;
+                case 'new_attempt':
+                    addAttempt(data);
+                    break;
+                case 'new_command':
+                    addCommand(data);
+                    break;
+                case 'stats':
+                    updateStats(data);
+                    break;
+                case 'top_usernames':
+                    state.topUsernames = data;
+                    renderRankList('topUsernames', data, 'users-card');
+                    break;
+                case 'top_passwords':
+                    state.topPasswords = data;
+                    renderRankList('topPasswords', data, 'passwords-card');
+                    break;
+                case 'top_ips':
+                    state.topIPs = data;
+                    renderRankList('topIPs', data, 'ips-card');
+                    break;
+                case 'attempts_over_time':
+                    state.attemptsOverTime = data;
+                    updateChart(data);
+                    break;
+                case 'connection_opened':
+                    addFeedEvent(data.timestamp, data.ip, `Session opened — ${data.username}@shell`, 'connection');
+                    break;
+                case 'connection_closed':
+                    addFeedEvent(data.timestamp, data.ip, 'Session closed', 'connection');
+                    break;
+                case 'ip_blocked':
+                    state.blockedIPs.push(data.ip);
+                    renderBlockedIPs();
+                    addFeedEvent(data.timestamp, data.ip, `IP BLOCKED`, 'blocked');
+                    break;
+                case 'ip_unblocked':
+                    state.blockedIPs = state.blockedIPs.filter(ip => ip !== data.ip);
+                    renderBlockedIPs();
+                    break;
+                case 'pong':
+                    break;
+            }
+        }
+
+        function loadInitialState(data) {
+            state.attempts = data.attempts || [];
+            state.commands = data.commands || [];
+            state.topUsernames = data.topUsernames || [];
+            state.topPasswords = data.topPasswords || [];
+            state.topIPs = data.topIPs || [];
+            state.attemptsOverTime = data.attemptsOverTime || [];
+            state.blockedIPs = data.blockedIPs || [];
+
+            updateStats(data.stats);
+            document.getElementById('totalCommands').textContent = state.commands.length;
+
+            // Render feed from existing attempts
+            const feed = document.getElementById('attackFeed');
+            feed.innerHTML = '';
+            state.attempts.slice(-100).forEach(a => {
+                appendFeedLine(a.timestamp, a.ip,
+                    `AUTH ${a.success ? '✓' : '✗'}  ${a.username}:${a.password}`,
+                    a.success ? 'success' : 'fail', false);
+            });
+            document.getElementById('feedCount').textContent = `${state.attempts.length} events`;
+
+            // Render commands
+            const cmdLog = document.getElementById('commandLog');
+            cmdLog.innerHTML = '';
+            if (state.commands.length === 0) {
+                cmdLog.innerHTML = '<div class="cmd-empty">No shell commands captured yet…</div>';
+            } else {
+                state.commands.slice(-100).forEach(c => appendCmdEntry(c, false));
+            }
+            document.getElementById('cmdCount').textContent = `${state.commands.length} commands`;
+
+            renderRankList('topUsernames', state.topUsernames, 'users-card');
+            renderRankList('topPasswords', state.topPasswords, 'passwords-card');
+            renderRankList('topIPs', state.topIPs, 'ips-card');
+            updateChart(state.attemptsOverTime);
+            renderBlockedIPs();
+        }
+
+        function addAttempt(attempt) {
+            state.attempts.push(attempt);
+            const eventType = attempt.success ? 'success' : 'fail';
+            const label = `AUTH ${attempt.success ? '✓' : '✗'}  ${attempt.username}:${attempt.password}`;
+            appendFeedLine(attempt.timestamp, attempt.ip, label, eventType);
+            document.getElementById('feedCount').textContent = `${state.attempts.length} events`;
+
+            // Flash effect
+            if (!attempt.success) triggerAttackFlash();
+        }
+
+        function addCommand(cmd) {
+            state.commands.push(cmd);
+            appendCmdEntry(cmd, true);
+            document.getElementById('totalCommands').textContent = state.commands.length;
+            document.getElementById('cmdCount').textContent = `${state.commands.length} commands`;
+        }
+
+        function updateStats(stats) {
+            animateNumber('totalAttempts', state.stats.totalAttempts, stats.totalAttempts);
+            animateNumber('uniqueIPs', state.stats.uniqueIPs, stats.uniqueIPs);
+            animateNumber('activeSessions', state.stats.activeConnections, stats.activeConnections);
+            state.stats = stats;
+
+            // Flash metrics
+            flashMetric('metricAttempts');
+        }
+
+        // ── DOM Rendering ──────────────────────────────
+        function appendFeedLine(timestamp, ip, text, type, scroll = true) {
+            const feed = document.getElementById('attackFeed');
+            // Clear empty message
+            const empty = feed.querySelector('.terminal-empty');
+            if (empty) empty.remove();
+
+            const line = document.createElement('div');
+            line.className = 'terminal-line';
+
+            const ts = formatTime(timestamp);
+            line.innerHTML = `
+                <span class="ts">${ts}</span>
+                <span class="ip">${ip}</span>
+                <span class="event ${type}">${escapeHtml(text)}</span>
+            `;
+            feed.appendChild(line);
+
+            // Keep max 200 lines
+            while (feed.children.length > 200) {
+                feed.removeChild(feed.firstChild);
+            }
+
+            if (scroll) feed.scrollTop = feed.scrollHeight;
+        }
+
+        function addFeedEvent(timestamp, ip, text, type) {
+            appendFeedLine(timestamp, ip, text, type);
+        }
+
+        function appendCmdEntry(cmd, scroll = true) {
+            const log = document.getElementById('commandLog');
+            const empty = log.querySelector('.cmd-empty');
+            if (empty) empty.remove();
+
+            const entry = document.createElement('div');
+            entry.className = 'cmd-entry';
+            entry.innerHTML = `
+                <div class="cmd-meta">
+                    <span class="cmd-ts">${formatTime(cmd.timestamp)}</span>
+                    <span class="cmd-user">${escapeHtml(cmd.username)}</span>
+                    <span class="cmd-ip">${cmd.ip}</span>
+                </div>
+                <div class="cmd-text">${escapeHtml(cmd.command)}</div>
+            `;
+            log.appendChild(entry);
+
+            while (log.children.length > 150) {
+                log.removeChild(log.firstChild);
+            }
+
+            if (scroll) log.scrollTop = log.scrollHeight;
+        }
+
+        function renderRankList(elementId, data, cardClass) {
+            const el = document.getElementById(elementId);
+            if (!data || data.length === 0) {
+                el.innerHTML = '<li class="list-empty">No data yet</li>';
+                return;
+            }
+
+            const maxCount = data[0].count;
+            el.innerHTML = data.map((item, i) => `
+                <li class="rank-item">
+                    <span class="rank-num">${i + 1}</span>
+                    <div class="rank-info">
+                        <div class="rank-value" title="${escapeHtml(item.value)}">${escapeHtml(item.value)}</div>
+                        <div class="rank-bar-bg">
+                            <div class="rank-bar" style="width: ${(item.count / maxCount * 100).toFixed(1)}%"></div>
+                        </div>
+                    </div>
+                    <span class="rank-count">${item.count}</span>
+                </li>
+            `).join('');
+        }
+
+        function renderBlockedIPs() {
+            const el = document.getElementById('blockedList');
+            document.getElementById('blockedCount').textContent = `${state.blockedIPs.length} blocked`;
+
+            if (state.blockedIPs.length === 0) {
+                el.innerHTML = '<li class="blocked-empty">No IPs blocked</li>';
+                return;
+            }
+
+            el.innerHTML = state.blockedIPs.map(ip => `
+                <li class="blocked-item">
+                    <span class="blocked-ip-text">${ip}</span>
+                    <button class="btn btn-sm" onclick="unblockIP('${ip}')">
+                        <i data-lucide="unlock" style="width:12px;height:12px"></i> Unblock
+                    </button>
+                </li>
+            `).join('');
+
+            lucide.createIcons();
+        }
+
+        // ── Chart ──────────────────────────────────────
+        function initChart() {
+            const ctx = document.getElementById('timeChart').getContext('2d');
+
+            const gradient = ctx.createLinearGradient(0, 0, 0, 240);
+            gradient.addColorStop(0, 'rgba(99, 102, 241, 0.3)');
+            gradient.addColorStop(1, 'rgba(99, 102, 241, 0.0)');
+
+            chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Attempts',
+                        data: [],
+                        borderColor: '#6366f1',
+                        backgroundColor: gradient,
+                        borderWidth: 2.5,
+                        fill: true,
+                        tension: 0.4,
+                        pointRadius: 3,
+                        pointBackgroundColor: '#6366f1',
+                        pointBorderColor: '#1a2332',
+                        pointBorderWidth: 2,
+                        pointHoverRadius: 6,
+                        pointHoverBackgroundColor: '#818cf8',
+                    }],
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: { duration: 500, easing: 'easeOutQuart' },
+                    interaction: { intersect: false, mode: 'index' },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: 'rgba(17, 24, 39, 0.95)',
+                            titleColor: '#f1f5f9',
+                            bodyColor: '#94a3b8',
+                            borderColor: 'rgba(99, 102, 241, 0.3)',
+                            borderWidth: 1,
+                            cornerRadius: 8,
+                            padding: 12,
+                            titleFont: { family: 'Inter', weight: '600' },
+                            bodyFont: { family: 'JetBrains Mono' },
+                        },
+                    },
+                    scales: {
+                        x: {
+                            grid: { color: 'rgba(55, 65, 81, 0.15)', drawBorder: false },
+                            ticks: {
+                                color: '#64748b',
+                                font: { family: 'JetBrains Mono', size: 10 },
+                                maxTicksLimit: 12,
+                            },
+                        },
+                        y: {
+                            beginAtZero: true,
+                            grid: { color: 'rgba(55, 65, 81, 0.15)', drawBorder: false },
+                            ticks: {
+                                color: '#64748b',
+                                font: { family: 'JetBrains Mono', size: 10 },
+                                stepSize: 1,
+                            },
+                        },
+                    },
+                },
+            });
+        }
+
+        function updateChart(data) {
+            if (!chart) return;
+            chart.data.labels = data.map(d => d.time);
+            chart.data.datasets[0].data = data.map(d => d.count);
+            chart.update('none');
+        }
+
+        // ── Animations & Effects ───────────────────────
+        function animateNumber(elementId, from, to) {
+            const el = document.getElementById(elementId);
+            if (from === to) return;
+            const diff = to - from;
+            const steps = Math.min(Math.abs(diff), 20);
+            const stepDuration = 300 / steps;
+            let current = from;
+            const increment = diff / steps;
+            const interval = setInterval(() => {
+                current += increment;
+                if ((diff > 0 && current >= to) || (diff < 0 && current <= to)) {
+                    current = to;
+                    clearInterval(interval);
+                }
+                el.textContent = Math.round(current);
+            }, stepDuration);
+        }
+
+        function flashMetric(id) {
+            const el = document.getElementById(id);
+            el.classList.remove('flash');
+            void el.offsetWidth; // Force reflow
+            el.classList.add('flash');
+        }
+
+        function triggerAttackFlash() {
+            const el = document.getElementById('attackFlash');
+            el.classList.remove('active');
+            void el.offsetWidth;
+            el.classList.add('active');
+        }
+
+        // ── Toast Notifications ────────────────────────
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+
+            const icons = {
+                success: 'check-circle-2',
+                error: 'alert-circle',
+                info: 'info',
+            };
+
+            toast.innerHTML = `
+                <i data-lucide="${icons[type] || 'info'}" class="toast-icon" style="width:18px;height:18px;flex-shrink:0"></i>
+                <span>${escapeHtml(message)}</span>
+            `;
+            container.appendChild(toast);
+            lucide.createIcons();
+
+            setTimeout(() => {
+                toast.style.animation = 'toastOut 0.3s ease-in forwards';
+                setTimeout(() => toast.remove(), 300);
+            }, 4000);
+        }
+
+        // ── Actions ────────────────────────────────────
+        window.openBlockModal = () => {
+            document.getElementById('blockModal').classList.add('open');
+            document.getElementById('blockIpInput').focus();
+        };
+
+        window.closeBlockModal = () => {
+            document.getElementById('blockModal').classList.remove('open');
+            document.getElementById('blockIpInput').value = '';
+        };
+
+        window.submitBlockIP = async () => {
+            const ip = document.getElementById('blockIpInput').value.trim();
+            if (!ip) return;
+
+            try {
+                const res = await fetch(`${API_BASE}/api/block`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ip }),
+                });
+                if (res.ok) {
+                    showToast(`Blocked IP: ${ip}`, 'success');
+                } else {
+                    showToast('Failed to block IP', 'error');
+                }
+            } catch (e) {
+                showToast('Network error', 'error');
+            }
+            closeBlockModal();
+        };
+
+        window.unblockIP = async (ip) => {
+            try {
+                const res = await fetch(`${API_BASE}/api/unblock`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ip }),
+                });
+                if (res.ok) {
+                    showToast(`Unblocked IP: ${ip}`, 'info');
+                    state.blockedIPs = state.blockedIPs.filter(i => i !== ip);
+                    renderBlockedIPs();
+                }
+            } catch (e) {
+                showToast('Network error', 'error');
+            }
+        };
+
+        window.exportCSV = () => {
+            window.open(`${API_BASE}/api/export/csv`, '_blank');
+            showToast('Exporting CSV report…', 'info');
+        };
+
+        window.exportJSON = () => {
+            window.open(`${API_BASE}/api/export/json`, '_blank');
+            showToast('Exporting JSON report…', 'info');
+        };
+
+        // Handle Enter key in modal
+        document.getElementById('blockIpInput').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') submitBlockIP();
+            if (e.key === 'Escape') closeBlockModal();
+        });
+
+        // Close modal on overlay click
+        document.getElementById('blockModal').addEventListener('click', (e) => {
+            if (e.target === e.currentTarget) closeBlockModal();
+        });
+
+        // ── Utilities ──────────────────────────────────
+        function formatTime(iso) {
+            if (!iso) return '--:--:--';
+            try {
+                const d = new Date(iso);
+                return d.toLocaleTimeString('en-US', { hour12: false });
+            } catch {
+                return iso.slice(11, 19);
+            }
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+    })();
+    </script>
+</body>
+</html>
